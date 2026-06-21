@@ -8,7 +8,7 @@ from typing import Any, Dict, Tuple
 
 from src.main import YOOrchestrator
 from src.vil.profiles.yoldaolmak import apply_environment
-from src.vil.engine.metadata import build_basic_metadata_map
+from src.vil.engine.metadata import build_native_metadata_map
 from src.vil.engine.quality import quality_gate_native_batch
 from src.vil.providers.wordpress import fetch_post_context
 from src.vil.engine.processor import process_selected_images
@@ -290,10 +290,11 @@ def execute_native_attach(
     )
     processed = process_selected_images(selection.get("files", []))
     processed_images = processed.get("processed_images", [])
-    metadata_dict = build_basic_metadata_map(
+    metadata_dict, metadata_warnings = build_native_metadata_map(
         processed_images,
         location_hint=request.get("location_query") or post_context.get("title", ""),
         post_context=post_context,
+        mode=request.get("metadata_mode", "auto"),
     )
     approved_files, approved_metadata, approved_details, blocked = quality_gate_native_batch(
         processed_images=processed_images,
@@ -322,7 +323,7 @@ def execute_native_attach(
         "uploaded": published.get("uploaded", []),
         "failed_uploads": published.get("failed", []),
         "constraints": constraints,
-        "warnings": ["native attach uses basic metadata fallback only"],
+        "warnings": metadata_warnings,
         "duration_ms": duration_ms,
         "raw": {
             "selection": selection,

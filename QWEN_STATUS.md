@@ -91,6 +91,9 @@ Complete Milestone 3 by turning `vil attach` into a usable operator contract on 
 - Added native batch quality gate:
   - `src/vil/engine/quality.quality_gate_native_batch(...)`
 - Native attach now blocks low-quality processed assets before publish and exposes them via `rejected_assets`.
+- Added native metadata planner:
+  - `src/vil/engine/metadata.build_native_metadata_map(...)`
+- Native attach now attempts vision-backed metadata when credentials are present and falls back per-image to deterministic basic metadata.
 
 ## Verified
 - `python3 -m compileall src tests ops yo_yoldaolmak_filter.py yo_adaptive_filter.py yo_unsplash.py` -> pass
@@ -117,10 +120,11 @@ Complete Milestone 3 by turning `vil attach` into a usable operator contract on 
 - `python3 -m src.vil.app.cli plan --help` -> pass
 - `python3 -m src.vil.app.cli process --help` -> pass
 - `python3 -m src.vil.app.cli attach --help` -> pass
+- native metadata fallback contract -> pass without API credentials
 
 ## Current Test Result
 - `python3 -m pytest -q`
-- Status at last update: `15 passed, 1 warning`
+- Status at last update: `16 passed, 1 warning`
 
 ## Planned But Not Done
 - SQL injection audit and parameterized LIKE/query cleanup
@@ -128,6 +132,7 @@ Complete Milestone 3 by turning `vil attach` into a usable operator contract on 
 - Retry/error handling policy
 - Full internal migration from legacy `src/main.py` / `src/core/*` modules into `src/vil/*`
 - Native attach now supports selection + processing + basic-metadata publish + native quality gate, but advanced semantic metadata is still richer in the legacy orchestrator path
+- Vision metadata depends on `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`; without credentials the native path stays on deterministic fallback metadata.
 - Real HTTP API server surface (current API layer is Python-callable, not yet FastAPI/HTTP)
 
 ## Remaining Risks

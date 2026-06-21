@@ -233,8 +233,11 @@ def test_run_attach_job_native_engine_uses_native_pipeline(monkeypatch):
     )
     monkeypatch.setattr(
         attach_engine,
-        "build_basic_metadata_map",
-        lambda image_files, **kwargs: {path: {"title": path, "alt": path, "caption": path, "description": path} for path in image_files},
+        "build_native_metadata_map",
+        lambda image_files, **kwargs: (
+            {path: {"title": path, "alt": path, "caption": path, "description": path} for path in image_files},
+            ["vision metadata enabled"],
+        ),
     )
     monkeypatch.setattr(
         attach_engine,
@@ -262,7 +265,7 @@ def test_run_attach_job_native_engine_uses_native_pipeline(monkeypatch):
     assert result["uploaded_media_ids"] == [91, 92]
     assert result["inserted_blocks"] == 2
     assert result["selected_assets"] == ["roma-1.jpg", "roma-2.jpg"]
-    assert "basic metadata fallback" in result["warnings"][0]
+    assert "vision metadata enabled" in result["warnings"][0]
 
 
 def test_run_attach_job_native_engine_blocks_low_quality_assets(monkeypatch):
@@ -300,15 +303,18 @@ def test_run_attach_job_native_engine_blocks_low_quality_assets(monkeypatch):
     )
     monkeypatch.setattr(
         attach_engine,
-        "build_basic_metadata_map",
-        lambda image_files, **kwargs: {
-            "roma-1_yo.webp": {
-                "title": "Kısa",
-                "alt": "short",
-                "caption": "short",
-                "description": "tiny",
-            }
-        },
+        "build_native_metadata_map",
+        lambda image_files, **kwargs: (
+            {
+                "roma-1_yo.webp": {
+                    "title": "Kısa",
+                    "alt": "short",
+                    "caption": "short",
+                    "description": "tiny",
+                }
+            },
+            ["basic metadata fallback only"],
+        ),
     )
     monkeypatch.setattr(
         attach_engine,
@@ -336,3 +342,19 @@ def test_run_attach_job_native_engine_blocks_low_quality_assets(monkeypatch):
     assert result["uploaded_media_ids"] == []
     assert result["rejected_assets"][0]["file"] == "roma-1_yo.webp"
     assert "title too short" in result["rejected_assets"][0]["errors"]
+
+
+def test_build_native_metadata_map_falls_back_without_credentials(monkeypatch):
+    from src.vil.engine import metadata as metadata_engine
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    metadata_dict, warnings = metadata_engine.build_native_metadata_map(
+        ["roma-1_yo.webp"],
+        location_hint="Roma",
+        post_context={"title": "Roma Rehberi", "slug": "roma-rehberi"},
+    )
+
+    assert "roma-1_yo.webp" in metadata_dict
+    assert "basic metadata fallback only" in warnings[0]

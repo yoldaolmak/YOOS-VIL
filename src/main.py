@@ -128,9 +128,26 @@ def search_semantic_assets(
     if not tokens:
         return []
 
-    # Her token için LIKE koşulu (AND — tüm tokenlar path'te aranır)
-    like_parts = [f"LOWER(source_path) LIKE '%{t}%'" for t in tokens]
-    location_sql = " AND ".join(like_parts)
+    # Her token için metadata + path eşleşmesi (AND — tüm tokenlar bir alanda bulunmalı)
+    searchable_columns = (
+        "source_path",
+        "filename",
+        "title",
+        "description",
+        "summary",
+        "location",
+        "city",
+        "country",
+        "activity",
+        "scene",
+    )
+    token_clauses: list[str] = []
+    params: list[object] = []
+    for token in tokens:
+        per_token = " OR ".join([f"LOWER(COALESCE({column}, '')) LIKE ?" for column in searchable_columns])
+        token_clauses.append(f"({per_token})")
+        params.extend([f"%{token}%"] * len(searchable_columns))
+    location_sql = " AND ".join(token_clauses)
 
     # İçerik filtresi SQL
     cf_key = _ascii_normalize(content_filter or "")
@@ -146,13 +163,13 @@ def search_semantic_assets(
     try:
         sql = f"""
             SELECT source_path, filename, quality_score, selection_score,
-                   activity, scene, location
+                   activity, scene, location, city, country, title, description, summary, orientation
             FROM asset_index
             WHERE {where}
             ORDER BY selection_score DESC, quality_score DESC
             LIMIT ?
         """
-        rows = conn.execute(sql, [max(count * 4, 30)]).fetchall()
+        rows = conn.execute(sql, [*params, max(count * 4, 30)]).fetchall()
     finally:
         conn.close()
 

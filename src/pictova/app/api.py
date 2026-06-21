@@ -10,6 +10,24 @@ from src.pictova.engine.attach import build_attach_plan, build_process_result, p
 from src.pictova.providers.wordpress import fetch_post_context
 
 
+def search_photos(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """POST /search — lokasyon bazlı fotoğraf arama."""
+    from src.main import search_semantic_assets
+    query = str(payload.get("query", "")).strip()
+    if not query:
+        return {"status": "failed", "warning": "query gerekli"}
+    count = int(payload.get("count", 5))
+    include_icloud = bool(payload.get("include_icloud", False))
+    content_filter = payload.get("content_filter")
+    results = search_semantic_assets(
+        location_query=query,
+        count=count,
+        content_filter=content_filter,
+        include_icloud=include_icloud,
+    )
+    return {"status": "success", "query": query, "count": len(results), "results": results}
+
+
 def review_post(payload: Dict[str, Any]) -> Dict[str, Any]:
     site = payload.get("site", "yoldaolmak")
     post_id = payload.get("post_id")

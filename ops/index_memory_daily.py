@@ -4,8 +4,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from src.core.settings import get_visual_memory_db_path
-from src.visual_memory import VisualMemoryComponent, VisualMemoryConfig
+from src.utils.config import get_visual_memory_db_path
+from src.core.selection import VisualMemoryComponent, VisualMemoryConfig
 
 
 def parse_args() -> argparse.Namespace:

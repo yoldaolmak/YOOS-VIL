@@ -13,8 +13,8 @@ from urllib.request import Request, urlopen
 
 from PIL import Image, ImageOps
 
-from src.core.settings import load_project_env
-from src.visual_memory import VisualMemoryComponent, VisualMemoryConfig
+from src.utils.config import load_project_env
+from src.core.selection import VisualMemoryComponent, VisualMemoryConfig
 from src.visual_memory.deposit_config import load_deposit_config
 from src.visual_memory.models import StockConnectionStatus, StockSearchResult
 

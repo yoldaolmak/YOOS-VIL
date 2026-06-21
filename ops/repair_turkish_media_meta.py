@@ -7,8 +7,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from src.core.yo_metadata_generator import clean_text, topic_visual_detail
-from src.core.yo_wp_uploader import YOWordPressUploader
+from src.core.metadata_generator import clean_text, topic_visual_detail
+from src.services.wordpress import YOWordPressUploader
 
 ROOT = Path('/YOOS-VIL')
 LOG_DIR = ROOT / 'ops_logs' / 'media_meta_repair'

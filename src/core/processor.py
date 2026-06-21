@@ -15,7 +15,7 @@ import subprocess
 import json
 import numpy as np
 
-from src.core.settings import get_vil_dir, load_project_env
+from src.utils.config import get_vil_dir, load_project_env
 
 load_project_env()
 

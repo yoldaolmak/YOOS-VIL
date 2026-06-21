@@ -13,21 +13,21 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 from src.core.media_quality import normalize_text, validate_metadata, validate_processed_asset
-from src.core.settings import get_vil_dir, get_visual_memory_db_path, load_project_env
+from src.utils.config import get_vil_dir, get_visual_memory_db_path, load_project_env
 
 load_project_env()
 
 from src.core.media_publish import build_publish_slug_candidates, embed_metadata, ensure_publish_path, ensure_unique_slug
-from src.visual_memory import VisualMemoryComponent, VisualMemoryConfig
-from src.core.yo_image_processor import YOImageProcessor, get_vil_images
-from src.core.yo_metadata_generator import (
+from src.core.database import VisualMemoryComponent, VisualMemoryConfig
+from src.core.processor import YOImageProcessor, get_vil_images
+from src.core.metadata_generator import (
     YOMetadataGenerator,
     build_basic_metadata,
 )
-from src.core.yo_wp_uploader import fetch_post_context, upload_images_batch
+from src.services.wordpress import fetch_post_context, upload_images_batch
 
 try:
-    from src.core.yo_cloud_vision import YOCloudVisionClient, generate_metadata_for_files as generate_gv_metadata
+    from src.core.cloud_vision import YOCloudVisionClient, generate_metadata_for_files as generate_gv_metadata
 except ImportError:
     generate_metadata_for_files = None
 

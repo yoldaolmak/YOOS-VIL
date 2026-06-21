@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import base64
 
-from src.core.settings import env_str, load_project_env
+from src.utils.config import env_str, load_project_env
 
 load_project_env()
 

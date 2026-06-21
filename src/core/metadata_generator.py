@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict
 import os
 
-from src.core.settings import load_project_env
+from src.utils.config import load_project_env
 
 load_project_env()
 

@@ -15,7 +15,7 @@ from scripts.run_deposit import (
     login_session_id,
     login_user_for_download,
 )
-from src.core.settings import get_vil_dir, load_project_env
+from src.utils.config import get_vil_dir, load_project_env
 from src.visual_memory.deposit_config import load_deposit_config
 
 load_project_env()

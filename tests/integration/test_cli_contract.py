@@ -245,8 +245,21 @@ def test_run_attach_job_native_engine_uses_native_pipeline(monkeypatch):
     )
     monkeypatch.setattr(
         attach_engine,
+        "finalize_publish_assets",
+        lambda **kwargs: (
+            ["roma-semantik-1.webp", "roma-semantik-2.webp"],
+            {
+                "roma-semantik-1.webp": {"title": "Roma Semantik 1"},
+                "roma-semantik-2.webp": {"title": "Roma Semantik 2"},
+            },
+            {},
+        ),
+    )
+    seen = {}
+    monkeypatch.setattr(
+        attach_engine,
         "publish_processed_images",
-        lambda **kwargs: {
+        lambda **kwargs: seen.update(kwargs) or {
             "uploaded": [{"media_id": 91}, {"media_id": 92}],
             "failed": [],
             "content_update": {"inserted": 2},
@@ -270,6 +283,7 @@ def test_run_attach_job_native_engine_uses_native_pipeline(monkeypatch):
     assert result["inserted_blocks"] == 2
     assert result["selected_assets"] == ["roma-1.jpg", "roma-2.jpg"]
     assert "vision metadata enabled" in result["warnings"][0]
+    assert seen["processed_images"] == ["roma-semantik-1.webp", "roma-semantik-2.webp"]
 
 
 def test_run_attach_job_native_engine_blocks_low_quality_assets(monkeypatch):
@@ -346,6 +360,19 @@ def test_run_attach_job_native_engine_blocks_low_quality_assets(monkeypatch):
     assert result["uploaded_media_ids"] == []
     assert result["rejected_assets"][0]["file"] == "roma-1_yo.webp"
     assert "title too short" in result["rejected_assets"][0]["errors"]
+
+
+def test_insert_before_first_h2_preserves_gutenberg_heading_block():
+    from src.services import wordpress
+
+    content = """<!-- wp:paragraph -->\n<p>Intro</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Baslik</h2>\n<!-- /wp:heading -->\n"""
+    block = "<!-- wp:image --><figure>Gorsel</figure><!-- /wp:image -->"
+
+    updated = wordpress._insert_before_first_h2(content, block)
+
+    assert "<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Baslik</h2>\n<!-- /wp:heading -->" in updated
+    assert "<!-- wp:heading -->\n\n<!-- wp:image -->" not in updated
+    assert updated.index(block) < updated.index("<!-- wp:heading -->")
 
 
 def test_build_native_metadata_map_falls_back_without_credentials(monkeypatch):

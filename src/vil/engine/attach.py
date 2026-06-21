@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 import re
 from typing import Any, Dict, Tuple
 
 from src.main import YOOrchestrator
+from src.core.media_publish import build_publish_slug_candidates, embed_metadata, ensure_publish_path, ensure_unique_slug
 from src.vil.profiles.yoldaolmak import apply_environment
 from src.vil.engine.metadata import build_native_metadata_map
 from src.vil.engine.quality import quality_gate_native_batch
@@ -262,6 +264,50 @@ def build_process_result(
     }
 
 
+def finalize_publish_assets(
+    *,
+    processed_images: list[str],
+    metadata_dict: Dict[str, Dict[str, Any]],
+    processed_details: Dict[str, Dict[str, Any]],
+    post_context: Dict[str, Any],
+    work_dir: str | None,
+) -> tuple[list[str], Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    used_slugs: set[str] = set()
+    finalized_files: list[str] = []
+    finalized_metadata: Dict[str, Dict[str, Any]] = {}
+    finalized_details: Dict[str, Dict[str, Any]] = {}
+    target_dir = Path(work_dir) if work_dir else (Path(processed_images[0]).parent if processed_images else Path("/tmp"))
+
+    for file in processed_images:
+        meta = dict(metadata_dict.get(file, {}))
+        process_info = dict(processed_details.get(file, {}))
+        slug_source_path = str(process_info.get("input") or file)
+        slug_candidates = build_publish_slug_candidates(meta, post_context, slug_source_path)
+        candidate_slug = ensure_unique_slug(slug_candidates[0], used_slugs)
+        for slug in slug_candidates:
+            trial = ensure_unique_slug(slug, used_slugs)
+            if trial == slug:
+                candidate_slug = trial
+                break
+        used_slugs.add(candidate_slug)
+
+        final_path = ensure_publish_path(target_dir, candidate_slug)
+        source_path = Path(file)
+        if source_path != final_path:
+            source_path.replace(final_path)
+
+        embedded = embed_metadata(str(final_path), meta)
+        meta["embedded"] = embedded
+        meta["final_slug"] = final_path.stem
+
+        finalized_path = str(final_path)
+        finalized_files.append(finalized_path)
+        finalized_metadata[finalized_path] = meta
+        finalized_details[finalized_path] = process_info
+
+    return finalized_files, finalized_metadata, finalized_details
+
+
 def execute_native_attach(
     *,
     site: str,
@@ -302,11 +348,18 @@ def execute_native_attach(
         processed_details=processed.get("processed_details", {}),
         post_context=post_context,
     )
+    finalized_files, finalized_metadata, finalized_details = finalize_publish_assets(
+        processed_images=approved_files,
+        metadata_dict=approved_metadata,
+        processed_details=approved_details,
+        post_context=post_context,
+        work_dir=processed.get("work_dir"),
+    )
     published = publish_processed_images(
         site=site,
         post_id=request["post_id"],
-        processed_images=approved_files,
-        metadata_dict=approved_metadata,
+        processed_images=finalized_files,
+        metadata_dict=finalized_metadata,
     )
     duration_ms = int((datetime.utcnow() - started).total_seconds() * 1000)
     return {
@@ -328,8 +381,8 @@ def execute_native_attach(
         "raw": {
             "selection": selection,
             "processed": processed,
-            "approved_files": approved_files,
-            "approved_details": approved_details,
+            "approved_files": finalized_files,
+            "approved_details": finalized_details,
             "published": published,
         },
     }

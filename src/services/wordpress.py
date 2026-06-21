@@ -357,10 +357,18 @@ def _escape_html(value: str) -> str:
 
 
 def _insert_before_first_h2(content: str, block_html: str) -> str:
-    match = re.search(r"<h2\b[^>]*>", content, flags=re.I)
-    if not match:
-        return content.rstrip() + "\n\n" + block_html + "\n"
-    insert_at = match.start()
+    block_match = re.search(
+        r"<!-- wp:heading(?:\s+\{.*?\})? -->\s*<h2\b[^>]*>.*?</h2>\s*<!-- /wp:heading -->",
+        content,
+        flags=re.S | re.I,
+    )
+    if block_match:
+        insert_at = block_match.start()
+    else:
+        match = re.search(r"<h2\b[^>]*>", content, flags=re.I)
+        if not match:
+            return content.rstrip() + "\n\n" + block_html + "\n"
+        insert_at = match.start()
     prefix = content[:insert_at].rstrip()
     suffix = content[insert_at:].lstrip()
     return prefix + "\n\n" + block_html + "\n\n" + suffix

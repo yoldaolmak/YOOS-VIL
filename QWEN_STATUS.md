@@ -1,7 +1,7 @@
 # YOOS-VIL Development Status
 
 ## Current Goal
-Complete Milestone 2 by introducing `src/vil/` as the canonical package root without breaking the stabilized runtime.
+Complete Milestone 3 by turning `vil attach` into a usable operator contract on top of the canonical package root.
 
 ## Physically Completed
 - Fixed `ops/yoos_vil_health.py` syntax errors so the health script parses again.
@@ -42,6 +42,20 @@ Complete Milestone 2 by introducing `src/vil/` as the canonical package root wit
   - `vil = "src.vil.app.cli:main"`
 - Updated `README.md` to show canonical `vil attach`, `vil review`, `vil health` usage.
 - Removed `pytest-cov` dependency from default `pytest.ini` addopts so plain `pytest` now runs in this environment.
+- Upgraded `src/vil/app/jobs.py` so `vil attach` now returns a structured contract with:
+  - `command`
+  - `request`
+  - `post_context`
+  - `constraints`
+  - `selected_assets`
+  - `rejected_assets`
+  - `uploaded_media_ids`
+  - `inserted_blocks`
+  - `failed_uploads`
+  - `duration_ms`
+- Added post-context-based location query derivation for `semantic` attach mode when the operator only provides `--post`.
+- Added structured CLI failure handling so `attach` and `review` return JSON errors instead of tracebacks.
+- Added integration-style CLI contract tests in `tests/integration/test_cli_contract.py`.
 
 ## Verified
 - `python3 -m compileall src tests ops yo_yoldaolmak_filter.py yo_adaptive_filter.py yo_unsplash.py` -> pass
@@ -57,23 +71,24 @@ Complete Milestone 2 by introducing `src/vil/` as the canonical package root wit
   - `YOImageProcessor().apply_yo_filter(...)`
 - `python3 -m src.vil.app.cli health` -> pass
 - `python3 -m src.vil.app.cli attach --help` -> pass
+- `python3 -m src.vil.app.cli review --site yoldaolmak --post 1` -> structured failure JSON when credentials are missing
 - `python3 -m pytest -q` -> pass
 
 ## Current Test Result
 - `python3 -m pytest -q`
-- Status at last update: `5 passed, 1 warning`
+- Status at last update: `7 passed, 1 warning`
 
 ## Planned But Not Done
 - SQL injection audit and parameterized LIKE/query cleanup
 - Structured logging
 - Retry/error handling policy
 - Full internal migration from legacy `src/main.py` / `src/core/*` modules into `src/vil/*`
-- Rich `vil attach` contract with structured constraints (`--lang`, `--people-first`) enforced end-to-end
+- Native attach flow inside `src/vil/engine/*` instead of wrapping the legacy orchestrator
 - API surface
 
 ## Remaining Risks
 - The branch now has a canonical package root, but most core logic still lives in legacy modules wrapped by `src/vil/*`.
-- `vil attach` currently wraps the existing orchestrator; it is not yet a fully native `src/vil/engine/*` implementation.
+- `vil attach` now has a structured contract, but still wraps the existing orchestrator; it is not yet a fully native `src/vil/engine/*` implementation.
 - Some deleted modules were restored as compatibility modules to recover runtime behavior; they still need a proper long-term home in the planned package layout.
 
 ## Last Commands Run
@@ -82,6 +97,7 @@ python3 -m compileall src tests ops yo_yoldaolmak_filter.py yo_adaptive_filter.p
 python3 -m pytest -q
 python3 -m src.vil.app.cli health
 python3 -m src.vil.app.cli attach --help
+python3 -m src.vil.app.cli review --site yoldaolmak --post 1
 python3 - <<'PY'
 import sys
 sys.path.insert(0, '/Users/yoldaolmak/Projects/YOOS-VIL-pr1')

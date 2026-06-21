@@ -2,25 +2,59 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+import re
 from typing import Any, Dict
 
 from src.main import YOOrchestrator
 from src.vil.profiles.yoldaolmak import apply_environment
 
 
-def normalize_attach_result(raw: Dict[str, Any]) -> Dict[str, Any]:
+def summarize_post_context(post_context: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "id": post_context.get("id"),
+        "title": post_context.get("title", ""),
+        "slug": post_context.get("slug", ""),
+    }
+
+
+def derive_location_query(post_context: Dict[str, Any]) -> str:
+    title = str(post_context.get("title") or "").strip()
+    slug = str(post_context.get("slug") or "").replace("-", " ").strip()
+    candidate = title or slug
+    candidate = re.sub(r"\s+", " ", candidate).strip()
+    return candidate
+
+
+def normalize_attach_result(
+    raw: Dict[str, Any],
+    *,
+    constraints: Dict[str, Any],
+    duration_ms: int,
+    request: Dict[str, Any],
+    post_context: Dict[str, Any],
+) -> Dict[str, Any]:
     upload_complete = raw.get("steps", {}).get("upload_complete", {})
     uploaded = upload_complete.get("uploaded", [])
     content_update = upload_complete.get("content_update", {})
+    warning = raw.get("warning") or raw.get("error")
+    quality_gate = raw.get("steps", {}).get("quality_gate", {})
     return {
+        "command": "attach",
         "site": raw.get("site"),
         "post_id": raw.get("post_id"),
+        "request": request,
+        "post_context": summarize_post_context(post_context),
         "status": raw.get("status"),
         "selected_assets": raw.get("steps", {}).get("images_loaded", {}).get("files", []),
-        "rejected_assets": raw.get("steps", {}).get("quality_gate", {}).get("blocked", []),
+        "rejected_assets": quality_gate.get("blocked", []),
         "uploaded_media_ids": [item.get("media_id") for item in uploaded if item.get("media_id")],
         "inserted_blocks": content_update.get("inserted", 0),
-        "warnings": raw.get("warning") or raw.get("error"),
+        "uploaded": uploaded,
+        "failed_uploads": upload_complete.get("failed", []),
+        "constraints": constraints,
+        "warnings": [warning] if warning else [],
+        "duration_ms": duration_ms,
         "raw": raw,
     }
 
@@ -29,6 +63,36 @@ def run_attach_job(**kwargs: Any) -> Dict[str, Any]:
     site = kwargs.get("site", "yoldaolmak")
     if site == "yoldaolmak":
         apply_environment()
+
+    started = datetime.utcnow()
+    request = dict(kwargs)
+    post_id = request.get("post_id")
+    post_context = {}
+    if post_id:
+        try:
+            from src.vil.providers.wordpress import fetch_post_context
+
+            post_context = fetch_post_context(post_id, site=site) or {}
+        except Exception:
+            post_context = {}
+
+    if request.get("source") == "semantic" and not request.get("location_query"):
+        request["location_query"] = derive_location_query(post_context)
+
+    constraints = {
+        "language": request.pop("language", "tr"),
+        "people_first": bool(request.pop("people_first", False)),
+    }
+    if constraints["people_first"] and not request.get("content_filter"):
+        request["content_filter"] = "insan"
+
     orchestrator = YOOrchestrator()
-    raw = orchestrator.run_pipeline(**kwargs)
-    return normalize_attach_result(raw)
+    raw = orchestrator.run_pipeline(**request)
+    duration_ms = int((datetime.utcnow() - started).total_seconds() * 1000)
+    return normalize_attach_result(
+        raw,
+        constraints=constraints,
+        duration_ms=duration_ms,
+        request=request,
+        post_context=post_context,
+    )

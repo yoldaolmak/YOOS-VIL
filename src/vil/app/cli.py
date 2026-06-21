@@ -11,6 +11,10 @@ from src.vil.app.jobs import run_attach_job
 from src.vil.providers.wordpress import fetch_post_context
 
 
+def _print_json(payload: Dict[str, Any]) -> None:
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="vil")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -36,12 +40,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _attach_args_to_payload(args: argparse.Namespace) -> Dict[str, Any]:
-    content_filter = args.content_filter
-    if args.people_first and not content_filter:
-        content_filter = "insan"
-    location_query = args.location_query
-    if args.source == "semantic" and not location_query:
-        location_query = str(args.post)
     return {
         "site": args.site,
         "post_id": args.post,
@@ -49,8 +47,10 @@ def _attach_args_to_payload(args: argparse.Namespace) -> Dict[str, Any]:
         "name": args.name,
         "source": args.source,
         "query": args.query,
-        "location_query": location_query,
-        "content_filter": content_filter,
+        "location_query": args.location_query,
+        "content_filter": args.content_filter,
+        "language": args.lang,
+        "people_first": args.people_first,
     }
 
 
@@ -59,17 +59,33 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "attach":
-        result = run_attach_job(**_attach_args_to_payload(args))
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        try:
+            result = run_attach_job(**_attach_args_to_payload(args))
+        except Exception as exc:
+            result = {"command": "attach", "status": "failed", "warnings": [str(exc)]}
+        _print_json(result)
         return 0 if result.get("status") in {"success", "local"} else 1
 
     if args.command == "review":
-        print(json.dumps(fetch_post_context(args.post, site=args.site), ensure_ascii=False, indent=2))
-        return 0
+        try:
+            result = {
+                "command": "review",
+                "status": "success",
+                "post_context": fetch_post_context(args.post, site=args.site),
+            }
+        except Exception as exc:
+            result = {
+                "command": "review",
+                "status": "failed",
+                "post_context": {},
+                "warnings": [str(exc)],
+            }
+        _print_json(result)
+        return 0 if result["status"] == "success" else 1
 
     if args.command == "health":
         result = run_health_check()
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        _print_json(result)
         return 0 if result.get("status") == "ok" else 1
 
     parser.error(f"unknown command: {args.command}")

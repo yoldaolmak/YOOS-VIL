@@ -143,6 +143,17 @@ def main():
 
     print(f"\n✅ Tamamlandı: {_done} başarılı, {_errors} hata")
 
+    if _done > 0:
+        print("\n🔄 FTS indeksi yeniden oluşturuluyor...")
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "rebuild_fts",
+            str(Path(__file__).parent / "rebuild_fts.py"),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mod.main()
+
 
 if __name__ == "__main__":
     main()

@@ -144,6 +144,17 @@ def main():
     con.close()
     print(f"\n✅ Tamamlandı: {done} tarandı, {errors} hata")
 
+    if done > 0:
+        print("\n🔄 FTS indeksi yeniden oluşturuluyor...")
+        import importlib.util, pathlib
+        spec = importlib.util.spec_from_file_location(
+            "rebuild_fts",
+            str(Path(__file__).parent / "rebuild_fts.py"),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mod.main()
+
 
 def _now() -> str:
     from datetime import datetime, timezone

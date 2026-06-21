@@ -9,6 +9,7 @@ from typing import Any, Dict, Tuple
 from src.main import YOOrchestrator
 from src.vil.profiles.yoldaolmak import apply_environment
 from src.vil.providers.wordpress import fetch_post_context
+from src.vil.engine.selector import resolve_source_images
 
 
 def summarize_post_context(post_context: Dict[str, Any]) -> Dict[str, Any]:
@@ -173,3 +174,42 @@ def execute_legacy_attach(
         request=request,
         post_context=post_context,
     )
+
+
+def build_attach_plan(
+    *,
+    site: str,
+    request: Dict[str, Any],
+    post_context: Dict[str, Any],
+    constraints: Dict[str, Any],
+) -> Dict[str, Any]:
+    failure = validate_attach_request(
+        site=site,
+        request=request,
+        post_context=post_context,
+        constraints=constraints,
+    )
+    if failure:
+        failure["command"] = "plan"
+        return failure
+
+    selection = resolve_source_images(
+        source=request.get("source", "semantic"),
+        count=request.get("count"),
+        name=request.get("name"),
+        query=request.get("query"),
+        location_query=request.get("location_query"),
+        content_filter=request.get("content_filter"),
+        post_context=post_context,
+    )
+    return {
+        "command": "plan",
+        "site": site,
+        "post_id": request.get("post_id"),
+        "request": request,
+        "post_context": summarize_post_context(post_context),
+        "constraints": constraints,
+        "status": "success",
+        "selection": selection,
+        "warnings": [],
+    }

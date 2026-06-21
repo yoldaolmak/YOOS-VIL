@@ -6,6 +6,7 @@ from typing import Any, Dict
 
 from src.vil.app.health import run_health_check
 from src.vil.app.jobs import run_attach_job
+from src.vil.engine.attach import build_attach_plan, prepare_attach_request
 from src.vil.providers.wordpress import fetch_post_context
 
 
@@ -29,6 +30,17 @@ def review_post(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 def health_status() -> Dict[str, Any]:
     return run_health_check()
+
+
+def plan_attach(payload: Dict[str, Any]) -> Dict[str, Any]:
+    site = payload.get("site", "yoldaolmak")
+    request, post_context, constraints = prepare_attach_request(**payload)
+    return build_attach_plan(
+        site=site,
+        request=request,
+        post_context=post_context,
+        constraints=constraints,
+    )
 
 
 def attach_images(payload: Dict[str, Any]) -> Dict[str, Any]:

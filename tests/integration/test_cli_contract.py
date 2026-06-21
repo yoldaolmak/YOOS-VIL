@@ -117,3 +117,47 @@ def test_api_attach_images_reuses_job_contract(monkeypatch):
     assert result["command"] == "attach"
     assert result["status"] == "success"
     assert result["request"]["post_id"] == 42
+
+
+def test_api_plan_attach_uses_native_selection(monkeypatch):
+    from src.vil.app import api
+
+    monkeypatch.setattr(
+        "src.vil.app.api.prepare_attach_request",
+        lambda **payload: (
+            {"site": "yoldaolmak", "post_id": 42, "source": "semantic", "location_query": "Roma", "count": 3},
+            {"id": 42, "title": "Roma", "slug": "roma"},
+            {"language": "tr", "people_first": True},
+        ),
+    )
+    monkeypatch.setattr(
+        "src.vil.app.api.build_attach_plan",
+        lambda **kwargs: {"command": "plan", "status": "success", "selection": {"files": ["a.jpg"]}},
+    )
+
+    result = api.plan_attach({"site": "yoldaolmak", "post_id": 42})
+    assert result["command"] == "plan"
+    assert result["status"] == "success"
+    assert result["selection"]["files"] == ["a.jpg"]
+
+
+def test_cli_plan_command_outputs_structured_selection(monkeypatch, capsys):
+    from src.vil.app import cli
+
+    monkeypatch.setattr(
+        cli,
+        "plan_attach",
+        lambda payload: {
+            "command": "plan",
+            "status": "success",
+            "selection": {"source": "semantic", "files": ["roma-1.jpg", "roma-2.jpg"]},
+        },
+    )
+    monkeypatch.setattr(sys, "argv", ["vil", "plan", "--site", "yoldaolmak", "--post", "123"])
+
+    exit_code = cli.main()
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert '"command": "plan"' in output
+    assert '"roma-1.jpg"' in output

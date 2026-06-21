@@ -8,6 +8,7 @@ from typing import Any, Dict
 
 from src.vil.app.health import run_health_check
 from src.vil.app.jobs import run_attach_job
+from src.vil.app.api import plan_attach
 from src.vil.providers.wordpress import fetch_post_context
 
 
@@ -34,6 +35,18 @@ def build_parser() -> argparse.ArgumentParser:
     review = sub.add_parser("review")
     review.add_argument("--site", default="yoldaolmak")
     review.add_argument("--post", type=int, required=True)
+
+    plan = sub.add_parser("plan")
+    plan.add_argument("--site", default="yoldaolmak")
+    plan.add_argument("--post", type=int, required=True)
+    plan.add_argument("--count", type=int, default=4)
+    plan.add_argument("--name")
+    plan.add_argument("--source", default="semantic", choices=["semantic", "vil", "unsplash"])
+    plan.add_argument("--query")
+    plan.add_argument("--location-query")
+    plan.add_argument("--content-filter")
+    plan.add_argument("--lang", default="tr")
+    plan.add_argument("--people-first", action="store_true")
 
     sub.add_parser("health")
     return parser
@@ -82,6 +95,11 @@ def main() -> int:
             }
         _print_json(result)
         return 0 if result["status"] == "success" else 1
+
+    if args.command == "plan":
+        result = plan_attach(_attach_args_to_payload(args))
+        _print_json(result)
+        return 0 if result.get("status") == "success" else 1
 
     if args.command == "health":
         result = run_health_check()

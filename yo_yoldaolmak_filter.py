@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Yoldaolmak-specific image grade.
-
-Keeps the existing YO/gezgindunyasi grade isolated and applies a quieter
-teal-terra treatment that fits yoldaolmak's current palette.
-"""
+"""Yoldaolmak-specific image grade."""
 
 from __future__ import annotations
 

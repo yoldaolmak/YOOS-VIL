@@ -4,18 +4,18 @@ This file is the canonical instruction set for ongoing YOOS-VIL product work.
 
 ## Product Goal
 
-YOOS-VIL must become a real reusable application, not a pile of one-off scripts.
+YOOS-VIL must be a reusable application surface, not a collection of one-off scripts.
 
-It must support two simultaneous use cases:
+It must support two simultaneous workflows:
 
 1. Operator workflow:
-   When Kemal says "attach images to post `POST_ID` with VIL", the protocol must run reliably end-to-end.
+   When Kemal says "attach images to post `POST_ID` with VIL", the protocol must run reliably end to end.
 2. Reusable product workflow:
-   Another user/project must be able to use the same engine with a different site profile and configuration.
+   Another site/profile must be able to use the same engine through the same core surface.
 
 ## Non-Negotiable Rules
 
-1. Do not optimize for repo appearance by breaking runtime behavior.
+1. Do not optimize repo appearance by breaking runtime behavior.
 2. Do not delete a file if any runtime path still imports or calls it.
 3. Do not report planned architecture as completed architecture.
 4. Unpushed work is not done.
@@ -26,9 +26,9 @@ It must support two simultaneous use cases:
    - what was tested
    - what failed
 
-## Target Product Shape
+## Canonical Product Shape
 
-The system should be split into three layers.
+The system is split into three layers.
 
 ### 1. Product Core
 
@@ -67,13 +67,16 @@ Target modules:
 - `src/vil/app/api.py`
 - `src/vil/app/jobs.py`
 - `src/vil/app/health.py`
+- `src/vil/app/server.py`
+- `src/vil/app/state.py`
 
 Responsibilities:
 
 - CLI entrypoint
-- future API surface
+- HTTP surface
 - background job orchestration
 - structured health checks
+- job state tracking
 
 ### 3. Ops
 
@@ -91,31 +94,34 @@ These are not the product surface.
 
 ## Canonical User Contract
 
-The first stable public contract is CLI.
+The first stable public contracts are CLI and HTTP.
 
-Target command shape:
+CLI shape:
 
 ```bash
 vil attach --site yoldaolmak --post 264459
 vil attach --site yoldaolmak --post 264459 --count 4 --lang tr --people-first
 vil review --site yoldaolmak --post 264459
+vil plan --site yoldaolmak --post 264459 --count 4 --people-first
+vil process --site yoldaolmak --post 264459 --count 4 --people-first
 vil health
+vil serve --host 127.0.0.1 --port 8040
 ```
 
-The engine behind `vil attach` must:
+HTTP shape:
 
-1. fetch post context
-2. select relevant images
-3. reject watermark / stock-feeling / wrong-language assets
-4. prefer Turkish, human-centered assets when the content requires it
-5. process images
-6. upload media
-7. attach correct blocks to the target post
-8. return a structured result
+- `GET /health`
+- `POST /review`
+- `POST /plan`
+- `POST /process`
+- `POST /attach`
+- `POST /jobs/attach`
+- `GET /jobs`
+- `GET /jobs/{job_id}`
 
 ## Required Structured Output
 
-The attach pipeline should return a machine-readable result with fields like:
+The attach pipeline should return machine-readable output with fields like:
 
 - `site`
 - `post_id`
@@ -126,93 +132,67 @@ The attach pipeline should return a machine-readable result with fields like:
 - `warnings`
 - `duration_ms`
 
-## Current Review Findings To Respect
+Job endpoints should additionally expose:
 
-The current PR branch is not mergeable yet.
+- `job_id`
+- `status`
+- `created_at`
+- `updated_at`
+- `payload`
+- `result`
+- `error`
 
-Verified problems:
+## Current State
 
-1. `ops/yoos_vil_health.py` has a syntax error.
-2. `src/core/processor.py` still imports `yo_yoldaolmak_filter`, but that file was deleted.
-3. The branch uses Python 3.11 type syntax in places while this environment is currently running Python 3.9.
-4. The repo cleanup removed files more aggressively than the runtime contract allows.
+The branch has already completed the earlier stabilization work.
 
-These must be fixed before any new cleanup wave.
+Current verified surface:
+
+- canonical `src/vil/*` package root exists
+- CLI exists and is tested
+- native `plan`, `process`, and `attach` contracts exist
+- minimal HTTP surface exists and is tested
+- async attach job registry exists and is tested
+
+Still incomplete:
+
+- auth on HTTP surface
+- persisted job store
+- richer native metadata parity with legacy path
+- gradual retirement of legacy internals in `src/main.py` and `src/core/*`
 
 ## Immediate Implementation Order
 
-### Milestone 1: Stabilize Current PR
-
-Goal: make the PR branch runnable again before further architecture changes.
+### Milestone A: Secure the HTTP Surface
 
 Tasks:
 
-1. Fix syntax/runtime breakages in the existing PR branch.
-2. Restore or relocate any runtime dependency that was deleted while still imported.
-3. Make the branch compatible with the declared Python version strategy.
-4. Run compile/import/tests and record exact results in `QWEN_STATUS.md`.
+1. Add token-based auth for HTTP endpoints.
+2. Keep health behavior explicit and intentional.
+3. Ensure error payloads stay structured.
 
-Acceptance:
-
-- no syntax errors
-- no missing imports in the canonical attach path
-- tests run or failures are explicitly recorded
-
-### Milestone 2: Define Canonical Package Layout
-
-Goal: move from ad hoc rename-only restructuring to a coherent package.
+### Milestone B: Persist Job State
 
 Tasks:
 
-1. Introduce `src/vil/` as the canonical package root.
-2. Move current runtime code into `engine`, `providers`, `profiles`, `app`.
-3. Keep backward-compatibility wrappers only if needed temporarily.
-4. Remove dead code only after callers are updated.
+1. Replace in-memory-only registry with persistent storage.
+2. Preserve job history across restarts.
+3. Keep the HTTP contract stable.
 
-Acceptance:
-
-- one clear package root
-- canonical CLI entrypoint exists
-- imports resolve without relying on deleted root scripts
-
-### Milestone 3: Ship `vil attach`
-
-Goal: one stable operator command for real post workflows.
+### Milestone C: Reduce Legacy Dependency
 
 Tasks:
 
-1. Implement `vil attach --site ... --post ...`
-2. Support `--count`, `--lang`, `--people-first`
-3. Return structured output
-4. Cover the attach flow with at least one integration-style test
-
-Acceptance:
-
-- command exists
-- command runs through the core path
-- behavior is documented
-
-### Milestone 4: Add API Surface
-
-Goal: prepare the system to behave like a reusable app.
-
-Tasks:
-
-1. Add a minimal API layer, preferably FastAPI.
-2. Expose a job-style endpoint for image attachment.
-3. Keep API thin; business logic must remain in product core.
-
-Acceptance:
-
-- API wraps the same attach engine
-- no duplicated business logic
+1. Move more attach behavior from legacy orchestrator paths into `src/vil/engine/*`.
+2. Keep backward compatibility only where necessary.
+3. Remove dead code only after callers are updated.
 
 ## Do Not Do
 
 - Do not invent a second parallel architecture.
-- Do not hide breakages behind README claims.
+- Do not hide runtime breakage behind README claims.
 - Do not delete domain-specific runtime modules just because they look messy.
-- Do not merge the current PR until Milestone 1 is truly complete.
+- Do not merge work that is untested in the current environment.
 
 ## Required Working Style
 

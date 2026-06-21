@@ -1,96 +1,111 @@
 # YOOS-VIL
 
-> **Visual Intelligence Layer** — AI-powered photo indexing, semantic tagging, and media publishing for [yoldaolmak.com](https://yoldaolmak.com)
+YOOS-VIL, WordPress yazılarına içerikle uyumlu görseller seçmek, işlemek ve yerleştirmek için kullanılan görsel pipeline repo'sudur.
 
-A system that transforms 200,000+ raw travel photos into a structured, searchable media library — enriched with semantic metadata and published directly to WordPress.
+Bu repo şu an iki yüzey sunuyor:
 
----
+- `vil` CLI
+- minimal HTTP app surface
 
-## What This Is
+## Çalışan Yüzey
 
-YOOS-VIL is the visual asset backbone of a travel publication running since 2011. It is not a generic image gallery or photo management tool.
+### CLI
 
-It is a two-pass AI pipeline that:
-
-1. **Indexes** photos from local archives and external HDD (200,000+ assets)
-2. **Enriches** each photo with semantic tags, location context, and activity inference
-3. **Identifies** the author (face recognition via custom-trained model)
-4. **Selects** best candidates per article section using semantic slot planning
-5. **Publishes** optimized images directly to WordPress with correct metadata
-
----
-
-## Architecture
-
-```
-YOOS-VIL/
-├── yo_phase1_quick_tagger.py     # Fast local pass: location, color, face detection
-├── extract_kemal_kaya_faces.py   # Face recognition model training + scan
-├── yo_semantic_tagger.py         # Deep semantic tagging via Claude Vision
-├── yo_image_processor.py         # Crop, resize, format conversion
-├── yo_wp_uploader.py             # WordPress media library upload
-├── yo_orchestrator.py            # End-to-end pipeline runner
-├── index_memory_daily.py         # Incremental daily index update
-├── run_deposit.py                # Depositphotos licensed asset fetcher
-└── data/
-    └── visual_memory.db          # SQLite asset index (semantic + EXIF)
+```bash
+vil health
+vil review --site yoldaolmak --post 264459
+vil plan --site yoldaolmak --post 264459 --count 4 --people-first
+vil process --site yoldaolmak --post 264459 --count 4 --people-first
+vil attach --site yoldaolmak --post 264459 --count 4 --people-first
+vil attach --site yoldaolmak --post 264459 --count 4 --people-first --engine native
 ```
 
----
+### HTTP
 
-## Pipeline
-
-```
-HDD Archive (200,000+ photos)
-    ↓
-Phase 1 — Quick Pass (local, CPU)
-    ├── Path-based location extraction
-    ├── Dominant color detection (OpenCV)
-    ├── Face detection + Kemal Kaya identification
-    └── Perceptual hash deduplication
-    ↓
-Phase 2 — Deep Pass (async, Claude Vision)
-    ├── Scene and activity inference
-    ├── Landmark identification
-    └── Story narrative tags
-    ↓
-Slot Planning
-    ├── Match photos to article H2/H3 sections
-    └── Select best candidate per slot
-    ↓
-WordPress Upload
-    ├── WebP conversion + crop
-    ├── Alt text and caption generation
-    └── REST API publish
+```bash
+vil serve --host 127.0.0.1 --port 8040
 ```
 
----
+Endpoints:
 
-## Key Capabilities
+- `GET /`
+- `GET /health`
+- `GET /jobs`
+- `GET /jobs/{job_id}`
+- `POST /review`
+- `POST /plan`
+- `POST /process`
+- `POST /attach`
+- `POST /jobs/attach`
 
-| Capability | Details |
-|---|---|
-| **Face recognition** | Custom-trained model identifies the author across 200,000+ photos |
-| **Semantic tagging** | Location, scene, activity, landmark, and story tags per image |
-| **Slot planning** | Matches images to article sections by semantic relevance |
-| **Deduplication** | Perceptual hash with configurable Hamming threshold |
-| **Licensed assets** | Depositphotos API integration for gap-filling |
-| **Daily indexing** | Incremental scan keeps the library current |
+Örnek:
 
----
+```bash
+curl -s http://127.0.0.1:8040/health
 
-## Stack
+curl -s -X POST http://127.0.0.1:8040/plan \
+  -H 'Content-Type: application/json' \
+  -d '{"site":"yoldaolmak","post_id":264459,"count":4,"people_first":true}'
 
-- **Python 3.10** — core engine
-- **OpenCV + dlib** — local face detection and recognition
-- **Claude Vision** — deep semantic enrichment
-- **SQLite** — visual memory database (FTS search enabled)
-- **WordPress REST API** — media publishing
-- **Depositphotos API** — licensed stock asset fallback
+curl -s -X POST http://127.0.0.1:8040/jobs/attach \
+  -H 'Content-Type: application/json' \
+  -d '{"site":"yoldaolmak","post_id":264459,"count":4,"people_first":true}'
+```
 
----
+`POST /jobs/attach` senkron cevap yerine job kaydı döner. Sonra `GET /jobs/{job_id}` ile durum sorgulanır.
 
-## Related
+## Native ve Legacy
 
-- **[YOOS-APP](https://github.com/yoldaolmak/YOOS-APP)** — editorial content engine
-- **[yoldaolmak.com](https://yoldaolmak.com)** — live publication
+- `legacy`: mevcut orkestratörü sarar, bugün en tam davranış burada
+- `native`: yeni `src/vil/*` yüzeyini kullanır; seçim, işleme, kalite kapısı ve publish kontratı ayrıştırılmıştır
+
+Bugünkü durum:
+
+- native `plan` hazır
+- native `process` hazır
+- native `attach` çalışır
+- native metadata, API anahtarı varsa vision analizi dener
+- anahtar yoksa deterministic fallback metadata kullanır
+
+## Repo Yapısı
+
+```text
+src/
+  vil/
+    app/
+    engine/
+    profiles/
+    providers/
+  core/
+  services/
+  utils/
+ops/
+tests/
+docs/
+```
+
+## Doğrulama
+
+Son doğrulanan komutlar:
+
+```bash
+python3 -m pytest -q
+python3 -m src.vil.app.cli attach --help
+python3 -m src.vil.app.cli plan --help
+python3 -m src.vil.app.cli process --help
+python3 -m src.vil.app.cli serve --help
+```
+
+Son test durumu:
+
+- `18 passed, 1 warning`
+
+## Eksik Olanlar
+
+- native hattın legacy kadar zengin semantic metadata üretmesi
+- gerçek job state / queue / progress yüzeyi
+- HTTP surface için auth
+- persisted job store
+- structured logging
+- retry politikası
+- legacy çekirdeğin kademeli olarak `src/vil/*` altına taşınması

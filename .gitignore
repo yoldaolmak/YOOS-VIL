@@ -1,36 +1,48 @@
-# Runtime
-data/
-visual_memory/
-ops_backups/
-ops_logs/
-exports/
-luts/
-tmp/
-__pycache__/
+```
+# Compiled and build artifacts
 *.pyc
-*.pyo
+__pycache__/
+*.o
+*.obj
 
-# Venv
+# Dependencies
 .venv/
 venv/
+node_modules/
 
-# DB & Index
-*.db
-*.sqlite
-
-# Secrets
-.env
-*credentials*.json
-service-account-key.json
-
-# Logs & PID
+# Logs and temp files
 *.log
-*.pid
-*.txt.bak
+*.tmp
+*.swp
 
-# Temp
-tmp_rome_*.txt
-tmp_rome_*.jpg
-# CV cache
-*.cv_cache.json
-.cv_cache.json
+# Environment
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
+
+# Python specific
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Distribution / packaging
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+*.whl
+```

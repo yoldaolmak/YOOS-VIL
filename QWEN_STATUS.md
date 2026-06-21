@@ -86,6 +86,11 @@ Complete Milestone 3 by turning `vil attach` into a usable operator contract on 
 - Added optional native attach execution path:
   - `vil attach --engine native`
   - `src/vil/engine/attach.execute_native_attach(...)`
+- Added native metadata validator:
+  - `src/vil/engine/quality.validate_native_metadata(...)`
+- Added native batch quality gate:
+  - `src/vil/engine/quality.quality_gate_native_batch(...)`
+- Native attach now blocks low-quality processed assets before publish and exposes them via `rejected_assets`.
 
 ## Verified
 - `python3 -m compileall src tests ops yo_yoldaolmak_filter.py yo_adaptive_filter.py yo_unsplash.py` -> pass
@@ -106,6 +111,7 @@ Complete Milestone 3 by turning `vil attach` into a usable operator contract on 
 - `vil plan` unsplash validation -> structured failure when query is missing
 - `vil process` unsplash validation -> structured failure when query is missing
 - `vil attach --engine native` unsplash validation -> structured failure when query is missing
+- native attach quality gate -> blocked assets are surfaced in `rejected_assets`
 - `python3 -m pytest -q` -> pass
 - `src/vil/engine/attach.py` compile/import path -> pass
 - `python3 -m src.vil.app.cli plan --help` -> pass
@@ -114,15 +120,14 @@ Complete Milestone 3 by turning `vil attach` into a usable operator contract on 
 
 ## Current Test Result
 - `python3 -m pytest -q`
-- Status at last update: `9 passed, 1 warning`
+- Status at last update: `15 passed, 1 warning`
 
 ## Planned But Not Done
 - SQL injection audit and parameterized LIKE/query cleanup
 - Structured logging
 - Retry/error handling policy
 - Full internal migration from legacy `src/main.py` / `src/core/*` modules into `src/vil/*`
-- Native attach execution inside `src/vil/engine/*` instead of wrapping the legacy orchestrator
-- Native attach now supports selection + processing + basic-metadata publish, but advanced semantic metadata and quality gate are still richer in the legacy orchestrator path
+- Native attach now supports selection + processing + basic-metadata publish + native quality gate, but advanced semantic metadata is still richer in the legacy orchestrator path
 - Real HTTP API server surface (current API layer is Python-callable, not yet FastAPI/HTTP)
 
 ## Remaining Risks

@@ -263,3 +263,76 @@ def test_run_attach_job_native_engine_uses_native_pipeline(monkeypatch):
     assert result["inserted_blocks"] == 2
     assert result["selected_assets"] == ["roma-1.jpg", "roma-2.jpg"]
     assert "basic metadata fallback" in result["warnings"][0]
+
+
+def test_run_attach_job_native_engine_blocks_low_quality_assets(monkeypatch):
+    from src.vil.app import jobs
+    from src.vil.engine import attach as attach_engine
+
+    monkeypatch.setattr(
+        attach_engine,
+        "fetch_post_context",
+        lambda post_id, site="yoldaolmak": {"id": post_id, "title": "Roma Rehberi", "slug": "roma-rehberi"},
+    )
+    monkeypatch.setattr(
+        attach_engine,
+        "resolve_source_images",
+        lambda **kwargs: {"source": "semantic", "files": ["roma-1.jpg"]},
+    )
+    monkeypatch.setattr(
+        attach_engine,
+        "process_selected_images",
+        lambda files, **kwargs: {
+            "processed_images": ["roma-1_yo.webp"],
+            "processed_details": {
+                "roma-1_yo.webp": {
+                    "final_size": (1200, 750),
+                    "brightness": 0.5,
+                    "saturation": 0.2,
+                    "contrast": 0.2,
+                    "color_temp": 0.0,
+                    "file_size_kb": 120,
+                }
+            },
+            "panoramic_images": {},
+            "work_dir": "/tmp/vil-native",
+        },
+    )
+    monkeypatch.setattr(
+        attach_engine,
+        "build_basic_metadata_map",
+        lambda image_files, **kwargs: {
+            "roma-1_yo.webp": {
+                "title": "Kısa",
+                "alt": "short",
+                "caption": "short",
+                "description": "tiny",
+            }
+        },
+    )
+    monkeypatch.setattr(
+        attach_engine,
+        "publish_processed_images",
+        lambda **kwargs: {
+            "uploaded": [],
+            "failed": [],
+            "content_update": {"inserted": 0},
+        },
+    )
+
+    result = jobs.run_attach_job(
+        site="yoldaolmak",
+        post_id=264459,
+        count=1,
+        source="semantic",
+        location_query="Roma",
+        content_filter=None,
+        language="tr",
+        people_first=False,
+        engine="native",
+    )
+
+    assert result["status"] == "success"
+    assert result["uploaded_media_ids"] == []
+    assert result["rejected_assets"][0]["file"] == "roma-1_yo.webp"
+    assert "title too short" in result["rejected_assets"][0]["errors"]

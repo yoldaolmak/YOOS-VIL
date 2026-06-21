@@ -9,6 +9,7 @@ from typing import Any, Dict, Tuple
 from src.main import YOOrchestrator
 from src.vil.profiles.yoldaolmak import apply_environment
 from src.vil.engine.metadata import build_basic_metadata_map
+from src.vil.engine.quality import quality_gate_native_batch
 from src.vil.providers.wordpress import fetch_post_context
 from src.vil.engine.processor import process_selected_images
 from src.vil.engine.publisher import publish_processed_images
@@ -294,11 +295,17 @@ def execute_native_attach(
         location_hint=request.get("location_query") or post_context.get("title", ""),
         post_context=post_context,
     )
+    approved_files, approved_metadata, approved_details, blocked = quality_gate_native_batch(
+        processed_images=processed_images,
+        metadata_dict=metadata_dict,
+        processed_details=processed.get("processed_details", {}),
+        post_context=post_context,
+    )
     published = publish_processed_images(
         site=site,
         post_id=request["post_id"],
-        processed_images=processed_images,
-        metadata_dict=metadata_dict,
+        processed_images=approved_files,
+        metadata_dict=approved_metadata,
     )
     duration_ms = int((datetime.utcnow() - started).total_seconds() * 1000)
     return {
@@ -309,7 +316,7 @@ def execute_native_attach(
         "post_context": summarize_post_context(post_context),
         "status": "success" if not published.get("failed") else "partial",
         "selected_assets": selection.get("files", []),
-        "rejected_assets": [],
+        "rejected_assets": blocked,
         "uploaded_media_ids": [item.get("media_id") for item in published.get("uploaded", []) if item.get("media_id")],
         "inserted_blocks": published.get("content_update", {}).get("inserted", 0),
         "uploaded": published.get("uploaded", []),
@@ -320,6 +327,8 @@ def execute_native_attach(
         "raw": {
             "selection": selection,
             "processed": processed,
+            "approved_files": approved_files,
+            "approved_details": approved_details,
             "published": published,
         },
     }

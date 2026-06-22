@@ -197,8 +197,8 @@ def search_semantic_assets(
         src = row["source_path"] or ""
         if not src:
             if include_icloud:
-                # iCloud UUID'si döndür — üst katman indirir
-                paths.append(f"icloud://{row['filename'].split('.')[0]}")
+                # iCloud source_id (UUID) döndür — üst katman indirir
+                paths.append(f"icloud://{row['source_id']}")
             continue
         p = Path(src)
         if p.exists():

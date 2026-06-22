@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+import json
 from src.core.processor import get_vil_images
 from src.main import load_vil_images_from_index_for_post, search_semantic_assets
+from src.pictova.config import get_visual_memory_db_path
 
 
 def resolve_source_images(
@@ -31,17 +33,21 @@ def resolve_source_images(
         if len(files) >= _count:
             return {"source": "semantic", "query": location_query or "", "content_filter": content_filter, "files": files}
 
-        # 2. iCloud aday fotoğraflar (UUID döner)
-        icloud = search_semantic_assets(
-            location_query=location_query or _extract_location(post_context),
-            count=_count - len(files),
-            content_filter=content_filter,
-            post_context=post_context,
-            include_icloud=True,
-        )
-        icloud_uuids = [f for f in icloud if f.startswith("icloud://")]
+        # 2. iCloud aday fotoğraflar — önce destination index, sonra FTS fallback
+        need = _count - len(files)
+        loc_q = location_query or _extract_location(post_context)
+        icloud_uuids = _destination_index_uuids(loc_q, need)
+        if not icloud_uuids:
+            icloud = search_semantic_assets(
+                location_query=loc_q,
+                count=need,
+                content_filter=content_filter,
+                post_context=post_context,
+                include_icloud=True,
+            )
+            icloud_uuids = [f for f in icloud if f.startswith("icloud://")]
         if icloud_uuids:
-            files = files + icloud_uuids
+            files = files + icloud_uuids[:need]
 
         return {"source": "auto", "query": location_query or "", "content_filter": content_filter, "files": files}
 
@@ -90,6 +96,23 @@ def _extract_location(post_context: Dict[str, Any]) -> str:
     slug = str(post_context.get("slug") or "").replace("-", " ")
     title = str(post_context.get("title") or "")
     return slug or title
+
+
+def _destination_index_uuids(query: str, count: int) -> list[str]:
+    """Destination index JSON'dan en iyi UUID'leri çek."""
+    try:
+        idx_path = get_visual_memory_db_path().parent / "destination_index.json"
+        if not idx_path.exists():
+            return []
+        index = json.loads(idx_path.read_text(encoding="utf-8"))
+        q_lower = query.lower()
+        # İsim eşleşmesi (prefix veya içeriyor)
+        for dest_name, uuids in index.items():
+            if q_lower in dest_name.lower() or dest_name.lower() in q_lower:
+                return [f"icloud://{u}" for u in uuids[:count]]
+    except Exception:
+        pass
+    return []
 
 
 __all__ = ["load_vil_images_from_index_for_post", "resolve_source_images", "search_semantic_assets"]

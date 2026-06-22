@@ -49,13 +49,25 @@ def resolve_source_images(
         if icloud_uuids:
             files = files + icloud_uuids[:need]
 
-        # 3. DepositPhotos — hâlâ eksikse
+        # 3. Dış kaynaklar: Deposit + Unsplash 50:50 — hâlâ eksikse
         if len(files) < _count:
             need = _count - len(files)
             base_q = location_query or _extract_location(post_context)
-            enriched_q = _enrich_query_for_theme(base_q, post_context, content_filter)
-            dep_files = _deposit_search_download(query=enriched_q, count=need)
-            files = files + dep_files
+            dep_n = (need + 1) // 2        # üst yarı Deposit
+            uns_n = need // 2              # alt yarı Unsplash
+
+            dep_q = _enrich_query_for_theme(base_q, post_context, content_filter, source="deposit")
+            uns_q = _enrich_query_for_theme(base_q, post_context, content_filter, source="unsplash")
+
+            dep_files = _deposit_search_download(query=dep_q, count=dep_n) if dep_n else []
+            uns_files = _unsplash_search_download(query=uns_q, count=uns_n) if uns_n else []
+
+            # İnterlace: D U D U sıralaması
+            merged = []
+            for d, u in zip(dep_files, uns_files):
+                merged += [d, u]
+            merged += dep_files[len(uns_files):] + uns_files[len(dep_files):]
+            files = files + merged
 
         return {"source": "auto", "query": location_query or "", "content_filter": content_filter, "files": files}
 
@@ -106,12 +118,10 @@ def resolve_source_images(
         return {"source": "local", "query": raw, "content_filter": None, "files": paths}
 
     if source == "unsplash":
-        return {
-            "source": "unsplash",
-            "query": query or "",
-            "content_filter": None,
-            "files": [],
-        }
+        loc_q = location_query or query or _extract_location(post_context)
+        enriched_q = _enrich_query_for_theme(loc_q, post_context, content_filter, source="unsplash")
+        files = _unsplash_search_download(query=enriched_q, count=_count)
+        return {"source": "unsplash", "query": enriched_q, "content_filter": None, "files": files}
 
     raise ValueError(f"Unsupported source: {source}")
 
@@ -133,8 +143,14 @@ def _enrich_query_for_theme(
     query: str,
     post_context: Dict[str, Any],
     content_filter: str | None,
+    *,
+    source: str = "deposit",
 ) -> str:
-    """Post temasına göre arama sorgusuna modifier ekler."""
+    """Post temasına göre sorguya modifier ekler.
+
+    source='unsplash': atmosferik modifier (sunset/evening/landscape)
+    source='deposit' : spesifik modifier (night/coast/landscape)
+    """
     text = " ".join([
         query.lower(),
         str(post_context.get("title") or "").lower(),
@@ -143,11 +159,14 @@ def _enrich_query_for_theme(
     ])
 
     if any(kw in text for kw in _THEME_NIGHT_KEYWORDS):
-        # Gece teması: gündüz fotoğraf gelmesin
-        if "night" not in query and "gece" not in query:
-            return query + " night"
+        if source == "unsplash":
+            if "sunset" not in query and "evening" not in query:
+                return query + " sunset"
+        else:
+            if "night" not in query and "gece" not in query:
+                return query + " night"
     elif any(kw in text for kw in _THEME_NATURE_KEYWORDS):
-        if "nature" not in query and "landscape" not in query:
+        if "landscape" not in query and "nature" not in query:
             return query + " landscape"
     elif any(kw in text for kw in _THEME_BEACH_KEYWORDS):
         if "beach" not in query and "coast" not in query:
@@ -163,6 +182,48 @@ def _deposit_search_download(query: str, count: int) -> list[str]:
         return search_and_download(query=query, count=count)
     except Exception as e:
         print(f"  ⚠ DepositPhotos atlandı: {e}")
+        return []
+
+
+def _unsplash_search_download(query: str, count: int) -> list[str]:
+    """Unsplash'tan ara + indir. Hata olursa boş liste döner."""
+    try:
+        from yo_unsplash import YOUnsplashDownloader
+        d = YOUnsplashDownloader()
+        # Kalite filtresi: min 3000px genişlik, önce likes>0
+        results = d.search(query, count=count * 3)
+        scored = []
+        for r in results:
+            w = r.get("width", 0)
+            likes = r.get("likes", 0)
+            if w < 3000:
+                continue
+            score = likes + (2 if w >= 5000 else 0)
+            scored.append((score, r))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        best = [r for _, r in scored[:count]]
+        if not best:
+            return []
+        # İndir
+        downloaded = []
+        for i, r in enumerate(best, 1):
+            try:
+                import tempfile, requests as _req, pathlib as _pl
+                dl_url = r["links"]["download"]
+                import os
+                access_key = os.environ.get("UNSPLASH_ACCESS_KEY", "")
+                resp = _req.get(dl_url, headers={"Authorization": f"Client-ID {access_key}"}, timeout=30)
+                resp.raise_for_status()
+                slug = query.split()[0].lower()
+                dest = _pl.Path(tempfile.gettempdir()) / f"pictova_unsplash" / f"{slug}-{i}.jpg"
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(resp.content)
+                downloaded.append(str(dest))
+            except Exception as e:
+                print(f"  ⚠ Unsplash indirme hatası ({i}): {e}")
+        return downloaded
+    except Exception as e:
+        print(f"  ⚠ Unsplash atlandı: {e}")
         return []
 
 

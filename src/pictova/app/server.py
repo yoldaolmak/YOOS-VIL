@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from typing import Any, Callable, Dict, Tuple
 
-from src.pictova.app.api import attach_images, gallery_query, health_status, plan_attach, process_attach, review_post, search_photos
+from src.pictova.app.api import attach_images, gallery_query, health_status, plan_attach, process_attach, review_post, search_photos, stats_summary
 from src.pictova.app.state import job_registry
 
 
@@ -42,6 +42,7 @@ def _load_json_body(handler: BaseHTTPRequestHandler) -> Tuple[Dict[str, Any] | N
 def build_handler() -> type[BaseHTTPRequestHandler]:
     routes: Dict[Tuple[str, str], RouteHandler] = {
         ("GET", "/health"): lambda _payload: health_status(),
+        ("GET", "/stats"): lambda _payload: stats_summary(),
         ("POST", "/attach"): attach_images,
         ("POST", "/plan"): plan_attach,
         ("POST", "/process"): process_attach,

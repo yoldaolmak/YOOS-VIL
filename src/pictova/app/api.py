@@ -77,6 +77,20 @@ def review_post(payload: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
+def stats_summary() -> Dict[str, Any]:
+    """GET /stats — kısa istatistik özeti."""
+    from src.pictova.engine.gallery import gallery_stats
+    from src.pictova.engine.vision_chain import has_any_vision_source
+    stats = gallery_stats()
+    scan_pct = int(stats["scanned"] / stats["local"] * 100) if stats["local"] else 0
+    return {
+        "status": "ok",
+        **stats,
+        "scan_progress_pct": scan_pct,
+        "vision_ready": has_any_vision_source(),
+    }
+
+
 def health_status() -> Dict[str, Any]:
     return run_health_check()
 

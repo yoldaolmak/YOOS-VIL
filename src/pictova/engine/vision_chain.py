@@ -201,24 +201,41 @@ def _prepare_image_for_cli(image_path: str, max_side: int = 512) -> str:
     """HEIC veya büyük dosyaları küçük JPEG thumbnail'e çevir. Path döner."""
     p = Path(image_path)
     ext = p.suffix.lower()
+    tmp = Path(tempfile.gettempdir()) / f"pictova_thumb_{p.stem}.jpg"
+
+    # 1. PIL ile dönüşüm (en kaliteli)
     try:
         from PIL import Image as _PIL, ImageOps as _IO
         img = _IO.exif_transpose(_PIL.open(str(p))).convert("RGB")
         img.thumbnail((max_side, max_side))
-        tmp = Path(tempfile.gettempdir()) / f"pictova_thumb_{p.stem}.jpg"
         img.save(str(tmp), "JPEG", quality=75)
-        return str(tmp)
+        if tmp.exists() and tmp.stat().st_size > 0:
+            return str(tmp)
     except Exception:
-        # sips fallback (HEIC)
-        if ext in {".heic", ".heif"} and shutil.which("sips"):
-            tmp = Path(tempfile.gettempdir()) / f"pictova_thumb_{p.stem}.jpg"
-            subprocess.run(
-                ["sips", "-s", "format", "jpeg", "-Z", str(max_side), str(p), "--out", str(tmp)],
-                capture_output=True, timeout=30,
-            )
-            if tmp.exists():
-                return str(tmp)
-        return image_path
+        pass
+
+    # 2. sips fallback — HEIC dahil tüm formatlar için
+    sips_bin = shutil.which("sips")
+    if sips_bin:
+        r = subprocess.run(
+            [sips_bin, "-s", "format", "jpeg", "-Z", str(max_side), str(p), "--out", str(tmp)],
+            capture_output=True, timeout=30,
+        )
+        if r.returncode == 0 and tmp.exists() and tmp.stat().st_size > 0:
+            return str(tmp)
+
+    # 3. ImageMagick convert (opsiyonel)
+    convert_bin = shutil.which("convert")
+    if convert_bin:
+        r = subprocess.run(
+            [convert_bin, f"{p}[0]", "-resize", f"{max_side}x{max_side}>", "-quality", "75", str(tmp)],
+            capture_output=True, timeout=30,
+        )
+        if r.returncode == 0 and tmp.exists() and tmp.stat().st_size > 0:
+            return str(tmp)
+
+    # Dönüştürülemedi — orijinali döndür
+    return image_path
 
 
 def _analyze_claude_cli(
@@ -245,8 +262,10 @@ def _analyze_claude_cli(
         capture_output=True, timeout=120,
     )
     output = _strip_ansi((result.stdout or "").strip())
+    stderr = _strip_ansi((result.stderr or "").strip())
     if result.returncode != 0 or not output:
-        raise RuntimeError(f"Claude CLI rc={result.returncode}: {(result.stderr or '')[-300:]}")
+        detail = stderr[-300:] if stderr else "(stderr boş)"
+        raise RuntimeError(f"Claude CLI rc={result.returncode}: {detail}")
     return _parse_json_from_text(output)
 
 
